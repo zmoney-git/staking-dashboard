@@ -1,0 +1,14 @@
+# .streamlit/config.toml
+[theme]
+base = "dark"
+primaryColor = "#22D3EE"           # cyan accent
+backgroundColor = "#0B1220"        # near-black with a hint of blue
+secondaryBackgroundColor = "#111827" # panels/cards
+textColor = "#E5E7EB"              # soft white
+font = "sans serif"
+
+[server]
+headless = true
+
+[browser]
+gatherUsageStats = false
