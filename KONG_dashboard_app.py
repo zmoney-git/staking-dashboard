@@ -4,6 +4,7 @@ import requests
 import pandas as pd
 import streamlit as st
 import plotly.express as px
+from pathlib import Path
 
 # ========= Secrets =========
 API_URL = st.secrets["KONG_API_URL"]
@@ -51,9 +52,7 @@ def fetch_summary(url: str) -> dict:
     r.raise_for_status()
     return r.json()
 
-# helper for dtime series
-from pathlib import Path
-
+# ========= History loader for time series =========
 @st.cache_data(ttl=60)
 def load_daily_history(path: str = "data/summaries/daily.csv") -> pd.DataFrame:
     p = Path(path)
@@ -66,7 +65,7 @@ def load_daily_history(path: str = "data/summaries/daily.csv") -> pd.DataFrame:
     hist = hist.sort_values("snapshot_date").reset_index(drop=True)
 
     # derived changes
-    for col in ["total_staked","tvl_usd","active_wallets","percentage_supply","median_stake","max_stake"]:
+    for col in ["total_staked", "tvl_usd", "active_wallets", "percentage_supply", "median_stake", "max_stake"]:
         hist[f"{col}_dod"] = hist[col].diff()
 
     # smoothers
@@ -74,8 +73,6 @@ def load_daily_history(path: str = "data/summaries/daily.csv") -> pd.DataFrame:
     hist["active_wallets_7dma"] = hist["active_wallets"].rolling(7).mean()
     hist["tvl_usd_7dma"] = hist["tvl_usd"].rolling(7).mean()
     return hist
-
-# end helper for time series
 
 # ========= Page setup =========
 st.set_page_config(page_title="KONG Staking Dashboard", layout="wide")
@@ -129,7 +126,7 @@ c1, c2, c3, c4, c5, c6 = st.columns(6)
 active_wallets_count = df["user"].nunique()
 c1.metric("Wallets staking", f"{active_wallets_count:,}")
 
-# The rest can still use summary (official) or fall back to active data
+# The rest use summary (official) or fall back to active data
 total_staked = summary.get("totalStaked", float(df["stakedAmount"].sum()))
 tvl_usd = summary.get("tvlUsd", 0)
 perc_supply = summary.get("percentageOfCurrentSupply", 0.0)
@@ -153,7 +150,7 @@ tier_counts = (
 # Map for quick lookup
 tc = dict(zip(tier_counts["tier"], tier_counts["wallets"]))
 
-# Wallets currently staking 0 KONG (they still have KP per your API)
+# Wallets currently staking 0 KONG (API set still has KP, but zero KONG now)
 zero_stake_wallets = df_all.loc[df_all["stakedAmount"] <= 0, "user"].nunique()
 
 # 6 tiles: Tier 0..4 + zero-stake metric at the far right
@@ -164,7 +161,6 @@ t2.metric("Tier 2", f"{tc.get(2, 0):,}")
 t3.metric("Tier 3", f"{tc.get(3, 0):,}")
 t4.metric("Tier 4", f"{tc.get(4, 0):,}")
 t5.metric("Wallets with KP but 0 KONG staked", f"{zero_stake_wallets:,}")
-
 
 # ========= Tier charts (active only) =========
 st.markdown('<div class="stCard">', unsafe_allow_html=True)
@@ -190,7 +186,7 @@ with left:
         margin=dict(t=30, l=40, r=20, b=80),
         plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)"
     )
-    st.plotly_chart(fig_bar, use_container_width='stretch')
+    st.plotly_chart(fig_bar, width='stretch')
 
 with right:
     st.caption("Donut chart")
@@ -204,7 +200,7 @@ with right:
         margin=dict(t=30, l=40, r=20, b=40),
         plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)"
     )
-    st.plotly_chart(fig_pie, use_container_width='stretch')
+    st.plotly_chart(fig_pie, width='stretch')
 st.markdown('</div>', unsafe_allow_html=True)
 
 # ========= Distribution: rice / retail / whales (active only) =========
@@ -237,7 +233,7 @@ with c1:
             bargap=0.1, margin=dict(t=30, l=40, r=20, b=40),
             plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)"
         )
-        st.plotly_chart(fig_rice, use_container_width='stretch')
+        st.plotly_chart(fig_rice, width='stretch')
     else:
         st.info("No rice stakers.")
 
@@ -253,7 +249,7 @@ with c2:
             bargap=0.05, margin=dict(t=30, l=40, r=20, b=40),
             plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)"
         )
-        st.plotly_chart(fig_retail, use_container_width='stretch')
+        st.plotly_chart(fig_retail, width='stretch')
     else:
         st.info("No retail wallets in this range.")
 
@@ -269,7 +265,7 @@ with c3:
             bargap=0.2, margin=dict(t=30, l=40, r=20, b=40),
             plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)"
         )
-        st.plotly_chart(fig_whales, use_container_width='stretch')
+        st.plotly_chart(fig_whales, width='stretch')
     else:
         st.info("No whales above this cutoff.")
 st.markdown('</div>', unsafe_allow_html=True)
@@ -284,13 +280,13 @@ with left:
     st.markdown("#### Top 20 whales (active wallets)")
     top_whales = whale_df.nlargest(20, "stakedAmount")[["user", "stakedAmount"]].copy()
     top_whales["stakedAmount"] = top_whales["stakedAmount"].apply(format_kong)
-    st.dataframe(top_whales, use_container_width='stretch')
+    st.dataframe(top_whales, width='stretch')
 
 with right:
     st.markdown("#### All staking wallets (raw, may include 0)")
     df_display = df_all[["user", "stakedAmount", "tier"]].copy()  # full list incl. zeros
     df_display = df_display.sort_values("stakedAmount", ascending=False)
-    st.dataframe(df_display, use_container_width='stretch')
+    st.dataframe(df_display, width='stretch')
 st.markdown('</div>', unsafe_allow_html=True)
 
 # ========= Downloads =========
@@ -310,7 +306,7 @@ st.download_button(
 )
 st.markdown('</div>', unsafe_allow_html=True)
 
-# time series
+# ========= Time series =========
 st.markdown('<div class="stCard">', unsafe_allow_html=True)
 st.subheader("Time-series & Growth")
 
@@ -318,7 +314,7 @@ hist = load_daily_history()
 if hist.empty:
     st.info("No historical summaries yet. Once the daily job runs at least once, charts will appear here.")
 else:
-    period = st.radio("Window", ["30d","90d","All"], horizontal=True, index=0)
+    period = st.radio("Window", ["30d", "90d", "All"], horizontal=True, index=0)
     if period == "30d":
         start = hist["snapshot_date"].max() - pd.Timedelta(days=30)
         view = hist[hist["snapshot_date"] >= start]
@@ -331,49 +327,46 @@ else:
     c1, c2 = st.columns(2)
     with c1:
         st.caption("Total KONG staked")
-        fig_ts = px.line(view, x="snapshot_date", y=["total_staked","total_staked_7dma"],
-                         labels={"value":"KONG","snapshot_date":""})
-        fig_ts.update_layout(margin=dict(t=30,l=40,r=20,b=40),
+        fig_ts = px.line(view, x="snapshot_date", y=["total_staked", "total_staked_7dma"],
+                         labels={"value": "KONG", "snapshot_date": ""})
+        fig_ts.update_layout(margin=dict(t=30, l=40, r=20, b=40),
                              plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
-        st.plotly_chart(fig_ts, use_container_width='stretch')
+        st.plotly_chart(fig_ts, width='stretch')
 
     with c2:
         st.caption("Active wallets")
-        fig_aw = px.line(view, x="snapshot_date", y=["active_wallets","active_wallets_7dma"],
-                         labels={"value":"Wallets","snapshot_date":""})
-        fig_aw.update_layout(margin=dict(t=30,l=40,r=20,b=40),
+        fig_aw = px.line(view, x="snapshot_date", y=["active_wallets", "active_wallets_7dma"],
+                         labels={"value": "Wallets", "snapshot_date": ""})
+        fig_aw.update_layout(margin=dict(t=30, l=40, r=20, b=40),
                              plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
-        st.plotly_chart(fig_aw, use_container_width='stretch')
+        st.plotly_chart(fig_aw, width='stretch')
 
     c3, c4 = st.columns(2)
     with c3:
         st.caption("TVL (USD)")
-        fig_tvl = px.line(view, x="snapshot_date", y=["tvl_usd","tvl_usd_7dma"],
-                          labels={"value":"USD","snapshot_date":""})
-        fig_tvl.update_layout(margin=dict(t=30,l=40,r=20,b=40),
+        fig_tvl = px.line(view, x="snapshot_date", y=["tvl_usd", "tvl_usd_7dma"],
+                          labels={"value": "USD", "snapshot_date": ""})
+        fig_tvl.update_layout(margin=dict(t=30, l=40, r=20, b=40),
                               plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
-        st.plotly_chart(fig_tvl, use_container_width='stretch')
+        st.plotly_chart(fig_tvl, width='stretch')
 
     with c4:
         st.caption("Tier counts over time (stacked)")
-        tiers = view.melt(id_vars="snapshot_date", value_vars=["tier0","tier1","tier2","tier3","tier4"],
+        tiers = view.melt(id_vars="snapshot_date", value_vars=["tier0", "tier1", "tier2", "tier3", "tier4"],
                           var_name="tier", value_name="wallets")
-        tiers["tier"] = tiers["tier"].map({"tier0":"Tier 0","tier1":"Tier 1","tier2":"Tier 2","tier3":"Tier 3","tier4":"Tier 4"})
+        tiers["tier"] = tiers["tier"].map({"tier0": "Tier 0", "tier1": "Tier 1", "tier2": "Tier 2", "tier3": "Tier 3", "tier4": "Tier 4"})
         fig_tiers = px.area(tiers, x="snapshot_date", y="wallets", color="tier",
-                            labels={"wallets":"Wallets","snapshot_date":""})
-        fig_tiers.update_layout(margin=dict(t=30,l=40,r=20,b=40),
+                            labels={"wallets": "Wallets", "snapshot_date": ""})
+        fig_tiers.update_layout(margin=dict(t=30, l=40, r=20, b=40),
                                 plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
-        st.plotly_chart(fig_tiers, use_container_width='stretch')
+        st.plotly_chart(fig_tiers, width='stretch')
 
     # --- DoD deltas (latest) [robust to short histories] ---
-    # Only require the core columns to be non-null; ignore 7dma/diff NaNs
     core_cols = ["snapshot_date", "total_staked", "active_wallets", "tvl_usd"]
     valid = view.dropna(subset=[c for c in core_cols if c in view.columns])
 
     if not valid.empty:
         latest_row = valid.iloc[-1]
-
-        # Compute deltas safely even with a single row
         if len(valid) >= 2:
             prev_row = valid.iloc[-2]
             delta_total = latest_row["total_staked"] - prev_row["total_staked"]
@@ -392,4 +385,3 @@ else:
         st.caption("No valid rows yet for DoD metrics.")
 
 st.markdown('</div>', unsafe_allow_html=True)
-
