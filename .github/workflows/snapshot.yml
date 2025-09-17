@@ -1,0 +1,33 @@
+name: Daily KONG snapshot (summaries)
+
+on:
+  schedule:
+    - cron: "7 0 * * *"           # normal daily run
+  workflow_dispatch:               # <-- enables the "Run workflow" button
+
+permissions:
+  contents: write                  # <-- allow the job to commit/push
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pandas requests
+      - name: Snapshot (live)
+        env:
+          KONG_API_URL: https://kong-token-api.cyberkongz.com/leaderboard/export
+          KONG_SUMMARY_URL: https://kong-token-api.cyberkongz.com/staking-summary
+        run: python scripts/snapshot_daily.py
+      - name: Commit & push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Summary snapshot $(date -u +%F-%H:%M)" || echo "No changes"
+          git push
