@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 import plotly.express as px
 
-API_URL = os.getenv("KONG_API_URL", "https://kong-token-api.cyberkongz.com/leaderboard/export")
+API_URL = st.secrets["KONG_API_URL"]
 
 def classify_tier(x: float) -> int:
     if x < 25_000: return 0
@@ -60,22 +60,44 @@ for i, t in enumerate([0, 1, 2, 3, 4]):
 st.subheader("Wallets per Tier — Charts")
 left, right = st.columns(2)
 
+# Build a labeled copy once
+plot_df = tier_counts.copy()
+plot_df["tier_label"] = plot_df["tier"].map({0: "Tier 0", 1: "Tier 1", 2: "Tier 2", 3: "Tier 3", 4: "Tier 4"})
+plot_df = plot_df.sort_values("tier")  # ensure order 0..4
+
 with left:
     st.caption("Bar chart")
-    st.bar_chart(tier_counts.set_index("tier")["wallets"])
+    fig_bar = px.bar(
+        plot_df,
+        x="tier_label",
+        y="wallets",
+        text="wallets"
+    )
+    # Always put the numbers above the bars
+    fig_bar.update_traces(textposition="outside")
+
+    fig_bar.update_layout(
+        xaxis_title=None,  # remove "Tier" axis label
+        yaxis_title="Wallets",
+        xaxis_tickangle=0,  # keep labels horizontal
+        bargap=0.25,
+        margin=dict(t=30, l=40, r=20, b=80)
+    )
+    st.plotly_chart(fig_bar, use_container_width=True)
 
 with right:
     st.caption("Donut chart")
-    pie_df = tier_counts.copy()
-    pie_df["tier_label"] = pie_df["tier"].map({
-        0: "Tier 0", 1: "Tier 1", 2: "Tier 2", 3: "Tier 3", 4: "Tier 4"
-    })
-    fig = px.pie(pie_df, names="tier_label", values="wallets", hole=0.4)
-    fig.update_traces(
+    fig_pie = px.pie(
+        plot_df,
+        names="tier_label",
+        values="wallets",
+        hole=0.4
+    )
+    fig_pie.update_traces(
         textinfo="percent+label",
         hovertemplate="%{label}<br>%{value} wallets<extra></extra>"
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig_pie, use_container_width=True)
 
 # ---- All staking wallets table ----
 st.subheader("All staking wallets")
