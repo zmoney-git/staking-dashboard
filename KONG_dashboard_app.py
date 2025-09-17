@@ -190,7 +190,7 @@ with left:
         margin=dict(t=30, l=40, r=20, b=80),
         plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)"
     )
-    st.plotly_chart(fig_bar, use_container_width=True)
+    st.plotly_chart(fig_bar, use_container_width='stretch')
 
 with right:
     st.caption("Donut chart")
@@ -204,7 +204,7 @@ with right:
         margin=dict(t=30, l=40, r=20, b=40),
         plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)"
     )
-    st.plotly_chart(fig_pie, use_container_width=True)
+    st.plotly_chart(fig_pie, use_container_width='stretch')
 st.markdown('</div>', unsafe_allow_html=True)
 
 # ========= Distribution: rice / retail / whales (active only) =========
@@ -237,7 +237,7 @@ with c1:
             bargap=0.1, margin=dict(t=30, l=40, r=20, b=40),
             plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)"
         )
-        st.plotly_chart(fig_rice, use_container_width=True)
+        st.plotly_chart(fig_rice, use_container_width='stretch')
     else:
         st.info("No rice stakers.")
 
@@ -253,7 +253,7 @@ with c2:
             bargap=0.05, margin=dict(t=30, l=40, r=20, b=40),
             plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)"
         )
-        st.plotly_chart(fig_retail, use_container_width=True)
+        st.plotly_chart(fig_retail, use_container_width='stretch')
     else:
         st.info("No retail wallets in this range.")
 
@@ -269,7 +269,7 @@ with c3:
             bargap=0.2, margin=dict(t=30, l=40, r=20, b=40),
             plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)"
         )
-        st.plotly_chart(fig_whales, use_container_width=True)
+        st.plotly_chart(fig_whales, use_container_width='stretch')
     else:
         st.info("No whales above this cutoff.")
 st.markdown('</div>', unsafe_allow_html=True)
@@ -284,13 +284,13 @@ with left:
     st.markdown("#### Top 20 whales (active wallets)")
     top_whales = whale_df.nlargest(20, "stakedAmount")[["user", "stakedAmount"]].copy()
     top_whales["stakedAmount"] = top_whales["stakedAmount"].apply(format_kong)
-    st.dataframe(top_whales, use_container_width=True)
+    st.dataframe(top_whales, use_container_width='stretch')
 
 with right:
     st.markdown("#### All staking wallets (raw, may include 0)")
     df_display = df_all[["user", "stakedAmount", "tier"]].copy()  # full list incl. zeros
     df_display = df_display.sort_values("stakedAmount", ascending=False)
-    st.dataframe(df_display, use_container_width=True)
+    st.dataframe(df_display, use_container_width='stretch')
 st.markdown('</div>', unsafe_allow_html=True)
 
 # ========= Downloads =========
@@ -335,7 +335,7 @@ else:
                          labels={"value":"KONG","snapshot_date":""})
         fig_ts.update_layout(margin=dict(t=30,l=40,r=20,b=40),
                              plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
-        st.plotly_chart(fig_ts, use_container_width=True)
+        st.plotly_chart(fig_ts, use_container_width='stretch')
 
     with c2:
         st.caption("Active wallets")
@@ -343,7 +343,7 @@ else:
                          labels={"value":"Wallets","snapshot_date":""})
         fig_aw.update_layout(margin=dict(t=30,l=40,r=20,b=40),
                              plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
-        st.plotly_chart(fig_aw, use_container_width=True)
+        st.plotly_chart(fig_aw, use_container_width='stretch')
 
     c3, c4 = st.columns(2)
     with c3:
@@ -352,7 +352,7 @@ else:
                           labels={"value":"USD","snapshot_date":""})
         fig_tvl.update_layout(margin=dict(t=30,l=40,r=20,b=40),
                               plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
-        st.plotly_chart(fig_tvl, use_container_width=True)
+        st.plotly_chart(fig_tvl, use_container_width='stretch')
 
     with c4:
         st.caption("Tier counts over time (stacked)")
@@ -363,14 +363,33 @@ else:
                             labels={"wallets":"Wallets","snapshot_date":""})
         fig_tiers.update_layout(margin=dict(t=30,l=40,r=20,b=40),
                                 plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
-        st.plotly_chart(fig_tiers, use_container_width=True)
+        st.plotly_chart(fig_tiers, use_container_width='stretch')
 
-    # DoD deltas (latest)
-    latest = view.dropna().iloc[-1] if len(view) else None
-    if latest is not None:
+    # --- DoD deltas (latest) [robust to short histories] ---
+    # Only require the core columns to be non-null; ignore 7dma/diff NaNs
+    core_cols = ["snapshot_date", "total_staked", "active_wallets", "tvl_usd"]
+    valid = view.dropna(subset=[c for c in core_cols if c in view.columns])
+
+    if not valid.empty:
+        latest_row = valid.iloc[-1]
+
+        # Compute deltas safely even with a single row
+        if len(valid) >= 2:
+            prev_row = valid.iloc[-2]
+            delta_total = latest_row["total_staked"] - prev_row["total_staked"]
+            delta_wallets = int(latest_row["active_wallets"] - prev_row["active_wallets"])
+            delta_tvl = latest_row["tvl_usd"] - prev_row["tvl_usd"]
+        else:
+            delta_total = 0.0
+            delta_wallets = 0
+            delta_tvl = 0.0
+
         m1, m2, m3 = st.columns(3)
-        m1.metric("Δ Total staked (DoD)", format_kong(latest["total_staked_dod"]))
-        m2.metric("Δ Active wallets (DoD)", f"{int(latest['active_wallets_dod']) if pd.notna(latest['active_wallets_dod']) else 0:,}")
-        m3.metric("Δ TVL USD (DoD)", f"${latest['tvl_usd_dod']:,.0f}")
+        m1.metric("Δ Total staked (DoD)", format_kong(delta_total))
+        m2.metric("Δ Active wallets (DoD)", f"{delta_wallets:,}")
+        m3.metric("Δ TVL USD (DoD)", f"${delta_tvl:,.0f}")
+    else:
+        st.caption("No valid rows yet for DoD metrics.")
+
 st.markdown('</div>', unsafe_allow_html=True)
 
