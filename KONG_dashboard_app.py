@@ -53,16 +53,16 @@ def fetch_summary(url: str) -> dict:
     return r.json()
 
 def show_plotly(fig, height: int | None = None):
+    if height is not None:
+        fig.update_layout(height=height)   # set height on the figure itself
     st.plotly_chart(
         fig,
-        height=height,                # optional
-        config={                      # explicit Plotly config (no deprecated kwargs)
-            "displayModeBar": False,  # you were hiding it via CSS; this is the supported way
+        use_container_width=True,
+        config={
+            "displayModeBar": False,
             "responsive": True,
-            # add other plotly config here if you ever need it
         },
     )
-
 
 # ========= History loader for time series =========
 @st.cache_data(ttl=60)
@@ -88,16 +88,6 @@ def load_daily_history(path: str = "data/summaries/daily.csv") -> pd.DataFrame:
 
 # ========= Page setup =========
 st.set_page_config(page_title="KONG Staking Dashboard", layout="wide")
-
-# === debug plotly version ===
-
-import plotly, inspect
-with st.expander("Debug (versions)"):
-    st.write("Streamlit:", st.__version__)
-    st.write("Plotly:", plotly.__version__)
-    st.write("plotly_chart signature:", str(inspect.signature(st.plotly_chart)))
-
-# === end debug plotly version ===
 
 # Card-style + metric-tile styling (do NOT wrap st.metric in custom divs)
 st.markdown("""
@@ -144,11 +134,9 @@ df = df_all[df_all["stakedAmount"] > 0].copy()
 st.title("KONG Staking Dashboard")
 
 c1, c2, c3, c4, c5, c6 = st.columns(6)
-# Wallets staking → based on ACTIVE wallets only (exclude stakedAmount == 0), normal comma formatting
 active_wallets_count = df["user"].nunique()
 c1.metric("Wallets staking", f"{active_wallets_count:,}")
 
-# The rest use summary (official) or fall back to active data
 total_staked = summary.get("totalStaked", float(df["stakedAmount"].sum()))
 tvl_usd = summary.get("tvlUsd", 0)
 perc_supply = summary.get("percentageOfCurrentSupply", 0.0)
@@ -159,23 +147,18 @@ c4.metric("Max per wallet", format_kong(df["stakedAmount"].max() if not df.empty
 c5.metric("TVL", f"${tvl_usd:,.0f}")
 c6.metric("Percentage of circulating supply staked", f"{perc_supply:.2f}%")
 
-# ---- Tier quick glance (active only) + zero-stake metric ----
+# ---- Tier quick glance ----
 st.subheader("Wallets per Tier")
 
-# Active tiers (stakedAmount > 0)
 tier_counts = (
     df.groupby("tier", as_index=False)
       .agg(wallets=("user", "nunique"), total_kong=("stakedAmount", "sum"))
       .sort_values("tier")
 )
 
-# Map for quick lookup
 tc = dict(zip(tier_counts["tier"], tier_counts["wallets"]))
-
-# Wallets currently staking 0 KONG (API set still has KP, but zero KONG now)
 zero_stake_wallets = df_all.loc[df_all["stakedAmount"] <= 0, "user"].nunique()
 
-# 6 tiles: Tier 0..4 + zero-stake metric at the far right
 t0, t1, t2, t3, t4, t5 = st.columns(6)
 t0.metric("Tier 0", f"{tc.get(0, 0):,}")
 t1.metric("Tier 1", f"{tc.get(1, 0):,}")
@@ -184,7 +167,7 @@ t3.metric("Tier 3", f"{tc.get(3, 0):,}")
 t4.metric("Tier 4", f"{tc.get(4, 0):,}")
 t5.metric("Wallets with KP but 0 KONG staked", f"{zero_stake_wallets:,}")
 
-# ========= Tier charts (active only) =========
+# ========= Tier charts =========
 st.markdown('<div class="stCard">', unsafe_allow_html=True)
 st.subheader("Wallets per Tier — Charts")
 left, right = st.columns(2)
@@ -196,36 +179,28 @@ palette = ["#636EFA", "#00CC96", "#AB63FA", "#FFA15A", "#EF553B"]
 
 with left:
     st.caption("Bar chart")
-    fig_bar = px.bar(
-        plot_df, x="tier_label", y="wallets", text="wallets",
-        color="tier_label", color_discrete_sequence=palette
-    )
+    fig_bar = px.bar(plot_df, x="tier_label", y="wallets", text="wallets",
+                     color="tier_label", color_discrete_sequence=palette)
     fig_bar.update_traces(textposition="outside")
-    fig_bar.update_layout(
-        xaxis_title=None, yaxis_title="Wallets",
-        xaxis_tickformat="~s", yaxis_tickformat="~s",
-        bargap=0.25, showlegend=False,
-        margin=dict(t=30, l=40, r=20, b=80),
-        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)"
-    )
+    fig_bar.update_layout(xaxis_title=None, yaxis_title="Wallets",
+                          xaxis_tickformat="~s", yaxis_tickformat="~s",
+                          bargap=0.25, showlegend=False,
+                          margin=dict(t=30, l=40, r=20, b=80),
+                          plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
     show_plotly(fig_bar)
 
 with right:
     st.caption("Donut chart")
-    fig_pie = px.pie(
-        plot_df, names="tier_label", values="wallets", hole=0.45,
-        color="tier_label", color_discrete_sequence=palette
-    )
+    fig_pie = px.pie(plot_df, names="tier_label", values="wallets", hole=0.45,
+                     color="tier_label", color_discrete_sequence=palette)
     fig_pie.update_traces(textinfo="percent+label",
                           hovertemplate="%{label}<br>%{value} wallets<extra></extra>")
-    fig_pie.update_layout(
-        margin=dict(t=30, l=40, r=20, b=40),
-        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)"
-    )
+    fig_pie.update_layout(margin=dict(t=30, l=40, r=20, b=40),
+                          plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
     show_plotly(fig_pie)
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ========= Distribution: rice / retail / whales (active only) =========
+# ========= Distribution: rice / retail / whales =========
 st.markdown('<div class="stCard">', unsafe_allow_html=True)
 st.subheader("Distribution of KONG staked — Rice, Retail, and Whales")
 
@@ -249,12 +224,10 @@ with c1:
         fig_rice = px.histogram(rice_df, x="stakedAmount", nbins=30,
                                 title="Rice distribution",
                                 color_discrete_sequence=["#636EFA"])
-        fig_rice.update_layout(
-            xaxis_title="Staked KONG", yaxis_title="Wallets",
-            xaxis_tickformat="~s", yaxis_tickformat="~s",
-            bargap=0.1, margin=dict(t=30, l=40, r=20, b=40),
-            plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)"
-        )
+        fig_rice.update_layout(xaxis_title="Staked KONG", yaxis_title="Wallets",
+                               xaxis_tickformat="~s", yaxis_tickformat="~s",
+                               bargap=0.1, margin=dict(t=30, l=40, r=20, b=40),
+                               plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
         show_plotly(fig_rice)
     else:
         st.info("No rice stakers.")
@@ -265,12 +238,10 @@ with c2:
         fig_retail = px.histogram(retail_df, x="stakedAmount", nbins=50,
                                   title="Retail distribution",
                                   color_discrete_sequence=["#00CC96"])
-        fig_retail.update_layout(
-            xaxis_title="Staked KONG", yaxis_title="Wallets",
-            xaxis_tickformat="~s", yaxis_tickformat="~s",
-            bargap=0.05, margin=dict(t=30, l=40, r=20, b=40),
-            plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)"
-        )
+        fig_retail.update_layout(xaxis_title="Staked KONG", yaxis_title="Wallets",
+                                 xaxis_tickformat="~s", yaxis_tickformat="~s",
+                                 bargap=0.05, margin=dict(t=30, l=40, r=20, b=40),
+                                 plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
         show_plotly(fig_retail)
     else:
         st.info("No retail wallets in this range.")
@@ -281,12 +252,10 @@ with c3:
         fig_whales = px.histogram(whale_df, x="stakedAmount", nbins=20,
                                   title="Whale distribution",
                                   color_discrete_sequence=["#EF553B"])
-        fig_whales.update_layout(
-            xaxis_title="Staked KONG", yaxis_title="Wallets",
-            xaxis_tickformat="~s", yaxis_tickformat="~s",
-            bargap=0.2, margin=dict(t=30, l=40, r=20, b=40),
-            plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)"
-        )
+        fig_whales.update_layout(xaxis_title="Staked KONG", yaxis_title="Wallets",
+                                 xaxis_tickformat="~s", yaxis_tickformat="~s",
+                                 bargap=0.2, margin=dict(t=30, l=40, r=20, b=40),
+                                 plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
         show_plotly(fig_whales)
     else:
         st.info("No whales above this cutoff.")
@@ -302,13 +271,13 @@ with left:
     st.markdown("#### Top 20 whales (active wallets)")
     top_whales = whale_df.nlargest(20, "stakedAmount")[["user", "stakedAmount"]].copy()
     top_whales["stakedAmount"] = top_whales["stakedAmount"].apply(format_kong)
-    st.dataframe(top_whales, width='stretch')
+    st.dataframe(top_whales, use_container_width=True)
 
 with right:
     st.markdown("#### All staking wallets (raw, may include 0)")
-    df_display = df_all[["user", "stakedAmount", "tier"]].copy()  # full list incl. zeros
+    df_display = df_all[["user", "stakedAmount", "tier"]].copy()
     df_display = df_display.sort_values("stakedAmount", ascending=False)
-    st.dataframe(df_display, width='stretch')
+    st.dataframe(df_display, use_container_width=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
 # ========= Downloads =========
