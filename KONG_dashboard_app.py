@@ -89,6 +89,16 @@ def load_daily_history(path: str = "data/summaries/daily.csv") -> pd.DataFrame:
 # ========= Page setup =========
 st.set_page_config(page_title="KONG Staking Dashboard", layout="wide")
 
+# === debug plotly version ===
+
+import plotly, inspect
+with st.expander("Debug (versions)"):
+    st.write("Streamlit:", st.__version__)
+    st.write("Plotly:", plotly.__version__)
+    st.write("plotly_chart signature:", str(inspect.signature(st.plotly_chart)))
+
+# === end debug plotly version ===
+
 # Card-style + metric-tile styling (do NOT wrap st.metric in custom divs)
 st.markdown("""
 <style>
