@@ -52,6 +52,18 @@ def fetch_summary(url: str) -> dict:
     r.raise_for_status()
     return r.json()
 
+def show_plotly(fig, height: int | None = None):
+    st.plotly_chart(
+        fig,
+        height=height,                # optional
+        config={                      # explicit Plotly config (no deprecated kwargs)
+            "displayModeBar": False,  # you were hiding it via CSS; this is the supported way
+            "responsive": True,
+            # add other plotly config here if you ever need it
+        },
+    )
+
+
 # ========= History loader for time series =========
 @st.cache_data(ttl=60)
 def load_daily_history(path: str = "data/summaries/daily.csv") -> pd.DataFrame:
@@ -186,7 +198,7 @@ with left:
         margin=dict(t=30, l=40, r=20, b=80),
         plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)"
     )
-    st.plotly_chart(fig_bar, width='stretch')
+    show_plotly(fig_bar)
 
 with right:
     st.caption("Donut chart")
@@ -200,7 +212,7 @@ with right:
         margin=dict(t=30, l=40, r=20, b=40),
         plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)"
     )
-    st.plotly_chart(fig_pie, width='stretch')
+    show_plotly(fig_pie)
 st.markdown('</div>', unsafe_allow_html=True)
 
 # ========= Distribution: rice / retail / whales (active only) =========
@@ -233,7 +245,7 @@ with c1:
             bargap=0.1, margin=dict(t=30, l=40, r=20, b=40),
             plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)"
         )
-        st.plotly_chart(fig_rice, width='stretch')
+        show_plotly(fig_rice)
     else:
         st.info("No rice stakers.")
 
@@ -249,7 +261,7 @@ with c2:
             bargap=0.05, margin=dict(t=30, l=40, r=20, b=40),
             plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)"
         )
-        st.plotly_chart(fig_retail, width='stretch')
+        show_plotly(fig_retail)
     else:
         st.info("No retail wallets in this range.")
 
@@ -265,7 +277,7 @@ with c3:
             bargap=0.2, margin=dict(t=30, l=40, r=20, b=40),
             plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)"
         )
-        st.plotly_chart(fig_whales, width='stretch')
+        show_plotly(fig_whales)
     else:
         st.info("No whales above this cutoff.")
 st.markdown('</div>', unsafe_allow_html=True)
@@ -331,7 +343,7 @@ else:
                          labels={"value": "KONG", "snapshot_date": ""})
         fig_ts.update_layout(margin=dict(t=30, l=40, r=20, b=40),
                              plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
-        st.plotly_chart(fig_ts, width='stretch')
+        show_plotly(fig_ts)
 
     with c2:
         st.caption("Active wallets")
@@ -339,7 +351,7 @@ else:
                          labels={"value": "Wallets", "snapshot_date": ""})
         fig_aw.update_layout(margin=dict(t=30, l=40, r=20, b=40),
                              plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
-        st.plotly_chart(fig_aw, width='stretch')
+        show_plotly(fig_aw)
 
     c3, c4 = st.columns(2)
     with c3:
@@ -348,7 +360,7 @@ else:
                           labels={"value": "USD", "snapshot_date": ""})
         fig_tvl.update_layout(margin=dict(t=30, l=40, r=20, b=40),
                               plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
-        st.plotly_chart(fig_tvl, width='stretch')
+        show_plotly(fig_tvl)
 
     with c4:
         st.caption("Tier counts over time (stacked)")
@@ -359,7 +371,7 @@ else:
                             labels={"wallets": "Wallets", "snapshot_date": ""})
         fig_tiers.update_layout(margin=dict(t=30, l=40, r=20, b=40),
                                 plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
-        st.plotly_chart(fig_tiers, width='stretch')
+        show_plotly(fig_tiers)
 
     # --- DoD deltas (latest) [robust to short histories] ---
     core_cols = ["snapshot_date", "total_staked", "active_wallets", "tvl_usd"]
